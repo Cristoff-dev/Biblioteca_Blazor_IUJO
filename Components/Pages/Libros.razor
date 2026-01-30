@@ -1,0 +1,201 @@
+@page "/libros"
+@using BibliotecaBlazor.Models
+@using BibliotecaBlazor.Data
+@inject LibroService LibrosService
+
+<h3>Gestión de Libros</h3>
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+	<div class="alert alert-success">@successMsg</div>
+}
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+	<div class="alert alert-danger">@errorMsg</div>
+}
+
+<EditForm Model="@libro" OnValidSubmit="@GuardarAsync">
+	<DataAnnotationsValidator />
+	<ValidationSummary />
+
+	<!-- Campo oculto para mantener el Id al editar -->
+	<input type="hidden" @bind="libro.Id" />
+
+	<div class="mb-3">
+		<label>Título del libro</label>
+		<InputText class="form-control" @bind-Value="libro.TituloLibro" />
+	</div>
+
+	<div class="mb-3">
+		<label>Autor</label>
+		<InputText class="form-control" @bind-Value="libro.Autor" />
+	</div>
+
+	<div class="mb-3">
+		<label>Cantidad disponible</label>
+		<InputNumber class="form-control" @bind-Value="libro.CantidadDisponible" />
+	</div>
+
+	<div class="mb-3">
+		<label>Carátula (jpg/png)</label>
+		<InputFile OnChange="OnCaratulaSelected" />
+		@if (!string.IsNullOrEmpty(previewUrl))
+		{
+			<div class="mt-2">
+				<img src="@previewUrl" alt="Carátula" style="max-height:150px;" />
+			</div>
+		}
+	</div>
+
+	<button class="btn btn-primary" type="submit">Guardar</button>
+	<button class="btn btn-secondary ms-2" type="button" @onclick="Limpiar">Limpiar</button>
+</EditForm>
+
+<hr />
+
+<div class="mb-3">
+	<label>Buscar por título o autor</label>
+	<InputText class="form-control"
+			   Value="@term"
+			   ValueChanged="OnSearchChanged"
+			   ValueExpression="@(() => term)" />
+</div>
+
+<table class="table table-striped">
+	<thead>
+		<tr>
+			<th>Título</th>
+			<th>Autor</th>
+			<th>Disponible</th>
+			<th>Carátula</th>
+			<th></th>
+		</tr>
+	</thead>
+	<tbody>
+		@foreach (var l in lista)
+		{
+			<tr>
+				<td>@l.TituloLibro</td>
+				<td>@l.Autor</td>
+				<td>@l.CantidadDisponible</td>
+				<td>
+					@if (!string.IsNullOrEmpty(l.CaratulaUrl))
+					{
+						<img src="@l.CaratulaUrl" alt="carátula" style="height:60px;" />
+					}
+				</td>
+				<td class="text-end">
+					<button class="btn btn-sm btn-outline-primary me-2"
+							@onclick="@(() => Editar(l))">
+						Editar
+					</button>
+					<button class="btn btn-sm btn-outline-danger"
+							@onclick="@(() => EliminarAsync(l.Id))">
+						Eliminar
+					</button>
+				</td>
+			</tr>
+		}
+	</tbody>
+</table>
+
+@code {
+	private Libro libro = new();
+	private List<Libro> lista = new();
+	private string? term;
+	private IBrowserFile? caratulaFile;
+	private string? previewUrl;
+	private string? successMsg;
+	private string? errorMsg;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await RecargarAsync();
+	}
+
+	private async Task RecargarAsync()
+	{
+		// 🔹 Ahora usamos el servicio de búsqueda
+		lista = await LibrosService.BuscarAsync(term);
+	}
+
+	// 🔹 Método que recibe directamente el string escrito
+	private async Task OnSearchChanged(string value)
+	{
+		term = value;
+		await RecargarAsync();
+	}
+
+	private async Task GuardarAsync()
+	{
+		try
+		{
+			// Si hay carátula nueva, la guardamos
+			if (caratulaFile is not null)
+			{
+				using var stream = caratulaFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+				libro.CaratulaUrl = await LibrosService.GuardarCaratulaAsync(stream, caratulaFile.Name);
+			}
+
+			// Crear o actualizar
+			if (libro.Id == 0)
+				await LibrosService.CrearAsync(libro);
+			else
+				await LibrosService.ActualizarAsync(libro);
+
+			successMsg = "Libro guardado correctamente.";
+			await RecargarAsync();
+			Limpiar();
+		}
+		catch (Exception ex)
+		{
+			errorMsg = $"Error al guardar el libro: {ex.Message}";
+		}
+	}
+
+	private void Editar(Libro l)
+	{
+		libro = new Libro
+		{
+			Id = l.Id,
+			Autor = l.Autor,
+			TituloLibro = l.TituloLibro,
+			CantidadDisponible = l.CantidadDisponible,
+			CaratulaUrl = l.CaratulaUrl
+		};
+		previewUrl = l.CaratulaUrl;
+		caratulaFile = null;
+	}
+
+	private async Task EliminarAsync(int id)
+	{
+		try
+		{
+			await LibrosService.EliminarAsync(id); // 🔹 ahora es soft delete
+			successMsg = "Libro marcado como eliminado.";
+			await RecargarAsync();
+		}
+		catch (Exception ex)
+		{
+			errorMsg = $"Error al eliminar el libro: {ex.Message}";
+		}
+	}
+
+	private void Limpiar()
+	{
+		libro = new();
+		caratulaFile = null;
+		previewUrl = null;
+	}
+
+	private async Task OnCaratulaSelected(InputFileChangeEventArgs e)
+	{
+		caratulaFile = e.File;
+
+		using var stream = caratulaFile.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+		var buffer = new byte[caratulaFile.Size];
+		await stream.ReadAsync(buffer, 0, (int)caratulaFile.Size);
+		var base64 = Convert.ToBase64String(buffer);
+		previewUrl = $"data:{caratulaFile.ContentType};base64,{base64}";
+	}
+}

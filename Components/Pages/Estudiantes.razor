@@ -1,0 +1,216 @@
+@page "/estudiantes"
+@using BibliotecaBlazor.Models
+@using BibliotecaBlazor.Data
+@inject EstudianteService EstudiantesService
+
+<h3>Gestión de Estudiantes</h3>
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+	<div class="alert alert-success">@successMsg</div>
+}
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+	<div class="alert alert-danger">@errorMsg</div>
+}
+
+<EditForm Model="@estudiante" OnValidSubmit="@GuardarAsync">
+	<DataAnnotationsValidator />
+	<ValidationSummary />
+
+	<!-- Campo oculto para mantener el Id al editar -->
+	<InputNumber type="hidden" @bind-Value="estudiante.Id" />
+
+	<div class="mb-3">
+		<label>Cédula</label>
+		<InputText class="form-control"
+				   @bind-Value="estudiante.Cedula"
+				   maxlength="8"
+				   pattern="\d{8}"
+				   title="Debe contener exactamente 8 dígitos" />
+	</div>
+
+	<div class="mb-3">
+		<label>Nombre</label>
+		<InputText class="form-control" @bind-Value="estudiante.Nombre" />
+	</div>
+
+	<div class="mb-3">
+		<label>Apellido</label>
+		<InputText class="form-control" @bind-Value="estudiante.Apellido" />
+	</div>
+
+	<div class="mb-3">
+		<label>Semestre</label>
+		<InputSelect class="form-select" @bind-Value="estudiante.Semestre">
+			<option value="">-- Seleccione semestre --</option>
+			@for (int i = 1; i <= 6; i++)
+			{
+				<option value="@i">@i</option>
+			}
+		</InputSelect>
+	</div>
+
+	<div class="mb-3">
+		<label>Carrera</label>
+		<InputSelect class="form-select" @bind-Value="estudiante.Carrera">
+			<option value="">-- Seleccione carrera --</option>
+			<option value="Administración de empresas">Administración de empresas</option>
+			<option value="Contaduría">Contaduría</option>
+			<option value="Informática">Informática</option>
+			<option value="Electrónica">Electrónica</option>
+			<option value="Electrotecnia">Electrotecnia</option>
+			<option value="Mecánica industrial">Mecánica industrial</option>
+			<option value="Educación inicial">Educación inicial</option>
+			<option value="Educación integral">Educación integral</option>
+			<option value="Educación especial">Educación especial</option>
+		</InputSelect>
+	</div>
+
+	<div class="mb-3">
+		<label>Sección</label>
+		<InputSelect class="form-select" @bind-Value="estudiante.Seccion">
+			<option value="">-- Seleccione sección --</option>
+			<option value="A">A</option>
+			<option value="B">B</option>
+			<option value="C">C</option>
+			<option value="D">D</option>
+		</InputSelect>
+	</div>
+
+	<button class="btn btn-primary" type="submit">Guardar</button>
+	<button class="btn btn-secondary ms-2" type="button" @onclick="Limpiar">Limpiar</button>
+</EditForm>
+
+<hr />
+
+<div class="mb-3">
+	<label>Buscar por cédula o nombre/apellido</label>
+	<InputText class="form-control"
+			   Value="@term"
+			   ValueChanged="OnSearchChanged"
+			   ValueExpression="@(() => term)" />
+</div>
+
+<table class="table table-striped">
+	<thead>
+		<tr>
+			<th>Cédula</th>
+			<th>Nombre</th>
+			<th>Apellido</th>
+			<th>Semestre</th>
+			<th>Carrera</th>
+			<th>Sección</th>
+			<th></th>
+		</tr>
+	</thead>
+	<tbody>
+		@foreach (var e in lista)
+		{
+			<tr>
+				<td>@e.Cedula</td>
+				<td>@e.Nombre</td>
+				<td>@e.Apellido</td>
+				<td>@e.Semestre</td>
+				<td>@e.Carrera</td>
+				<td>@e.Seccion</td>
+				<td class="text-end">
+					<button class="btn btn-sm btn-outline-primary me-2"
+							@onclick="@(() => Editar(e))">
+						Editar
+					</button>
+					<button class="btn btn-sm btn-outline-danger"
+							@onclick="@(() => EliminarAsync(e.Id))">
+						Eliminar
+					</button>
+				</td>
+			</tr>
+		}
+	</tbody>
+</table>
+
+@code {
+	private Estudiante estudiante = new();
+	private List<Estudiante> lista = new();
+	private string? term;
+	private string? successMsg;
+	private string? errorMsg;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await RecargarAsync();
+	}
+
+	private async Task RecargarAsync()
+	{
+		lista = await EstudiantesService.BuscarAsync(term);
+	}
+
+	// 🔹 Método que recibe directamente el string escrito
+	private async Task OnSearchChanged(string value)
+	{
+		term = value;
+		await RecargarAsync();
+	}
+
+	private async Task GuardarAsync()
+	{
+		try
+		{
+			// 🔹 Validar unicidad de la cédula
+			var existente = await EstudiantesService.BuscarPorCedulaAsync(estudiante.Cedula);
+
+			if (existente != null && existente.Id != estudiante.Id)
+			{
+				errorMsg = "Ya existe un estudiante con esa cédula.";
+				return;
+			}
+
+			if (estudiante.Id == 0)
+				await EstudiantesService.CrearAsync(estudiante);
+			else
+				await EstudiantesService.ActualizarAsync(estudiante);
+
+			successMsg = "Estudiante guardado correctamente.";
+			Limpiar();
+			await RecargarAsync();
+		}
+		catch (Exception ex)
+		{
+			errorMsg = $"Error al guardar estudiante: {ex.Message}";
+		}
+	}
+
+	private void Limpiar()
+	{
+		estudiante = new();
+	}
+
+	private void Editar(Estudiante e)
+	{
+		estudiante = new Estudiante
+		{
+			Id = e.Id,
+			Cedula = e.Cedula,
+			Nombre = e.Nombre,
+			Apellido = e.Apellido,
+			Semestre = e.Semestre,
+			Carrera = e.Carrera,
+			Seccion = e.Seccion
+		};
+	}
+
+	private async Task EliminarAsync(int id)
+	{
+		try
+		{
+			await EstudiantesService.EliminarAsync(id); // 🔹 ahora es soft delete
+			successMsg = "Estudiante marcado como eliminado.";
+			await RecargarAsync();
+		}
+		catch (Exception ex)
+		{
+			errorMsg = $"Error al eliminar estudiante: {ex.Message}";
+		}
+	}
+}

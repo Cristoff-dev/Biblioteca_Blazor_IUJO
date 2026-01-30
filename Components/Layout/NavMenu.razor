@@ -1,0 +1,85 @@
+<nav class="nav flex-column sidebar-nav">
+	<!-- Encabezado institucional arriba -->
+	<div class="sidebar-header">
+		<h4>IUJO Biblioteca</h4>
+	</div>
+
+	<hr />
+
+	<!-- Menú de navegación -->
+	<ul class="nav flex-column">
+		<li class="nav-item">
+			<NavLink class="nav-link text-white" href="/" Match="NavLinkMatch.All">
+				<span class="oi oi-home"></span> Inicio
+			</NavLink>
+		</li>
+		<li class="nav-item">
+			<NavLink class="nav-link text-white" href="/libros">
+				<span class="oi oi-book"></span> Libros
+			</NavLink>
+		</li>
+		<li class="nav-item">
+			<NavLink class="nav-link text-white" href="/estudiantes">
+				<span class="oi oi-people"></span> Estudiantes
+			</NavLink>
+		</li>
+		<li class="nav-item">
+			<NavLink class="nav-link text-white" href="/prestamos">
+				<span class="oi oi-transfer"></span> Préstamos
+			</NavLink>
+		</li>
+		<li class="nav-item">
+			<NavLink class="nav-link text-white" href="/devoluciones">
+				<span class="oi oi-check"></span> Devoluciones
+			</NavLink>
+		</li>
+	</ul>
+
+	<hr />
+
+	<!-- Información personal debajo del menú -->
+	<div class="user-info">
+		<h6 class="user-name">Cristofer Aranguren</h6>
+		<p class="user-details">Semestre: 4<br />Sección: A</p>
+	</div>
+</nav>
+
+<style>
+	.sidebar-nav {
+		padding: 1rem;
+	}
+
+	.sidebar-header {
+		text-align: center;
+		color: #ffeb3b; 
+		font-weight: 700;
+	}
+
+	.user-info {
+		text-align: center;
+		margin-top: 1rem;
+	}
+
+	.user-name {
+		font-weight: 600;
+		font-size: 0.95rem;
+		margin: 0.2rem 0;
+		color: #ffeb3b;
+	}
+
+	.user-details {
+		font-size: 0.85rem;
+		margin-top: 0.5rem;
+		color: #fff;
+	}
+
+	.nav-link {
+		padding: 0.5rem 0;
+		font-weight: bold;
+	}
+
+		.nav-link.active {
+			background-color: #b71c1c; 
+			border-radius: 4px;
+		}
+</style>

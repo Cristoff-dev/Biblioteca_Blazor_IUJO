@@ -1,0 +1,119 @@
+@page "/devoluciones"
+@using BibliotecaBlazor.Models
+@using BibliotecaBlazor.Data
+@inject PrestamoService PrestamosService
+@inject DevolucionService DevolucionService
+
+<h3>Registro de Devoluciones</h3>
+
+<table class="table table-striped">
+	<thead>
+		<tr>
+			<th>Estudiante</th>
+			<th>Tipo</th>
+			<th>Fecha salida</th>
+			<th>Fecha devolución prevista</th>
+			<th>Libros</th>
+			<th>Observaciones devolución</th>
+			<th>Acciones</th>
+		</tr>
+	</thead>
+	<tbody>
+		@foreach (var item in pendientesConObs)
+		{
+			<tr>
+				<!-- 🔹 Ahora muestra también la cédula -->
+				<td>@item.Prestamo.Estudiante.Cedula - @item.Prestamo.Estudiante.Nombre @item.Prestamo.Estudiante.Apellido</td>
+				<td>@(item.Prestamo.EsInterno ? "Interno" : "Externo")</td>
+				<td>@item.Prestamo.FechaSalida.ToShortDateString()</td>
+				<td>@item.Prestamo.FechaDevolucion?.ToShortDateString()</td>
+				<td>
+					@foreach (var d in item.Prestamo.Detalles)
+					{
+						<div>@(d.Libro != null ? $"{d.Libro.TituloLibro} (x{d.Cantidad})" : $"[Libro no disponible] (x{d.Cantidad})")</div>
+					}
+				</td>
+				<td>
+					<InputTextArea class="form-control"
+								   @bind-Value="item.Observacion"
+								   placeholder="Escriba observaciones..." />
+				</td>
+				<td>
+					<button class="btn btn-sm btn-success" @onclick="() => RegistrarDevolucionAsync(item)">
+						Registrar devolución
+					</button>
+				</td>
+			</tr>
+		}
+	</tbody>
+</table>
+
+<hr />
+
+<h4>Historial de devoluciones</h4>
+<table class="table table-bordered">
+	<thead>
+		<tr>
+			<th>Estudiante</th>
+			<th>Fecha devolución</th>
+			<th>Observaciones</th>
+			<th>Libros</th>
+		</tr>
+	</thead>
+	<tbody>
+		@foreach (var d in devoluciones)
+		{
+			<tr>
+				<!-- 🔹 Ahora muestra también la cédula -->
+				<td>@d.Prestamo.Estudiante.Cedula - @d.Prestamo.Estudiante.Nombre @d.Prestamo.Estudiante.Apellido</td>
+				<td>@d.FechaDevolucion.ToShortDateString()</td>
+				<td>@d.Observaciones</td>
+				<td>
+					@foreach (var det in d.Prestamo.Detalles)
+					{
+						<div>@(det.Libro != null ? $"{det.Libro.TituloLibro} (x{det.Cantidad})" : $"[Libro no disponible] (x{det.Cantidad})")</div>
+					}
+				</td>
+			</tr>
+		}
+	</tbody>
+</table>
+
+@code {
+	// Modelo auxiliar
+	public class PrestamoConObservacion
+	{
+		public Prestamo Prestamo { get; set; } = null!;
+		public string? Observacion { get; set; }
+	}
+
+	private List<PrestamoConObservacion> pendientesConObs = new();
+	private List<Devolucion> devoluciones = new();
+
+	protected override async Task OnInitializedAsync()
+	{
+		var pendientes = await PrestamosService.ObtenerPendientesAsync();
+		pendientesConObs = pendientes.Select(p => new PrestamoConObservacion
+		{
+			Prestamo = p,
+			Observacion = string.Empty
+		}).ToList();
+
+		devoluciones = await DevolucionService.ObtenerTodasAsync();
+	}
+
+	private async Task RegistrarDevolucionAsync(PrestamoConObservacion item)
+	{
+		await DevolucionService.RegistrarAsync(item.Prestamo.Id, item.Observacion);
+
+		// Refrescar listas
+		var pendientes = await PrestamosService.ObtenerPendientesAsync();
+		pendientesConObs = pendientes.Select(p => new PrestamoConObservacion
+		{
+			Prestamo = p,
+			Observacion = string.Empty
+		}).ToList();
+
+		devoluciones = await DevolucionService.ObtenerTodasAsync();
+	}
+}

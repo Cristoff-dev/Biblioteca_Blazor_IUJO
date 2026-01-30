@@ -1,0 +1,286 @@
+@page "/prestamos"
+@using BibliotecaBlazor.Models
+@using BibliotecaBlazor.Data
+@inject PrestamoService PrestamosService
+@inject EstudianteService EstudiantesService
+@inject LibroService LibrosService
+
+<h3>Gestión de Préstamos</h3>
+
+@if (!string.IsNullOrEmpty(errorMsg))
+{
+    <div class="alert alert-danger">@errorMsg</div>
+}
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="alert alert-success">@successMsg</div>
+}
+
+<EditForm Model="@prestamo" OnValidSubmit="@GuardarAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="mb-3">
+        <label>Estudiante</label>
+        <InputSelect class="form-select" @bind-Value="prestamo.EstudianteId">
+            <option value="0">-- Seleccione --</option>
+            @foreach (var e in estudiantes)
+            {
+                <option value="@e.Id">@e.Cedula - @e.Nombre @e.Apellido</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label>Tipo de préstamo</label>
+        <InputSelect class="form-select" @bind-Value="prestamo.EsInterno">
+            <option value="true">Interno</option>
+            <option value="false">Externo</option>
+        </InputSelect>
+    </div>
+
+    <div class="mb-3">
+        <label>Fecha de salida</label>
+        <InputDate class="form-control" @bind-Value="prestamo.FechaSalida" />
+    </div>
+
+    @if (!prestamo.EsInterno)
+    {
+        <div class="mb-3">
+            <label>Fecha prevista de devolución</label>
+            <InputDate class="form-control" @bind-Value="prestamo.FechaDevolucion" />
+        </div>
+    }
+
+    <div class="mb-3">
+        <label>Observaciones del préstamo</label>
+        <InputTextArea class="form-control" @bind-Value="prestamo.Observaciones" />
+    </div>
+
+    <h5>Libros</h5>
+    <div class="mb-3">
+        <InputSelect class="form-select" @bind-Value="libroSeleccionadoId">
+            <option value="0">-- Seleccione libro --</option>
+            @foreach (var l in libros)
+            {
+                <option value="@l.Id">@l.TituloLibro (@l.CantidadDisponible disponibles)</option>
+            }
+        </InputSelect>
+        <InputNumber class="form-control mt-2" @bind-Value="cantidadSeleccionada" />
+        <button class="btn btn-secondary mt-2"
+                type="button"
+                @onclick="AgregarLibro"
+                disabled="@DeshabilitarAgregar">
+            Agregar
+        </button>
+        <div class="form-text mt-1">Total seleccionados: @TotalSeleccionado / 3</div>
+    </div>
+
+    <h5>Libros seleccionados</h5>
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Título</th>
+                <th>Cantidad</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var d in prestamo.Detalles)
+            {
+                <tr>
+                    <td>@libros.FirstOrDefault(x => x.Id == d.LibroId)?.TituloLibro</td>
+                    <td>@d.Cantidad</td>
+                    <td>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                @onclick="@(() => QuitarLibro(d))">
+                            Quitar
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <button class="btn btn-primary"
+            type="submit"
+            disabled="@DeshabilitarGuardar">
+        Guardar préstamo
+    </button>
+    <button class="btn btn-secondary ms-2"
+            type="button"
+            @onclick="Limpiar">
+        Limpiar
+    </button>
+</EditForm>
+
+<hr />
+
+<h4>Préstamos pendientes</h4>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Estudiante</th>
+            <th>Tipo</th>
+            <th>Fecha salida</th>
+            <th>Fecha devolución</th>
+            <th>Libros</th>
+            <th>Observaciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var p in pendientes)
+        {
+            <tr>
+                <!-- 🔹 Ahora muestra también la cédula -->
+                <td>@p.Estudiante.Cedula - @p.Estudiante.Nombre @p.Estudiante.Apellido</td>
+                <td>@(p.EsInterno ? "Interno" : "Externo")</td>
+                <td>@p.FechaSalida.ToShortDateString()</td>
+                <td>@p.FechaDevolucion?.ToShortDateString()</td>
+                <td>
+                    @foreach (var d in p.Detalles)
+                    {
+                        <div>@(d.Libro != null ? $"{d.Libro.TituloLibro} (x{d.Cantidad})" : $"[Libro no disponible] (x{d.Cantidad})")</div>
+                    }
+                </td>
+                <td>@p.Observaciones</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@code {
+    private Prestamo prestamo = new()
+    {
+        FechaSalida = DateTime.UtcNow,
+        Detalles = new List<PrestamoDetalle>()
+    };
+
+    private List<Estudiante> estudiantes = new();
+    private List<Libro> libros = new();
+    private List<Prestamo> pendientes = new();
+
+    private int libroSeleccionadoId;
+    private int cantidadSeleccionada = 1;
+
+    private string? errorMsg;
+    private string? successMsg;
+
+    private int TotalSeleccionado => prestamo.Detalles.Sum(d => d.Cantidad);
+
+    // ✅ Propiedades booleanas para los botones
+    private bool DeshabilitarAgregar => TotalSeleccionado >= 3;
+    private bool DeshabilitarGuardar => TotalSeleccionado == 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        estudiantes = await EstudiantesService.ObtenerTodosAsync();
+        libros = await LibrosService.ObtenerTodosAsync();
+        pendientes = await PrestamosService.ObtenerPendientesAsync();
+    }
+
+    private void AgregarLibro()
+    {
+        var libro = libros.FirstOrDefault(l => l.Id == libroSeleccionadoId);
+        if (libro is null) { errorMsg = "Debe seleccionar un libro."; return; }
+        if (cantidadSeleccionada <= 0) { errorMsg = "La cantidad debe ser mayor a 0."; return; }
+        if (cantidadSeleccionada > libro.CantidadDisponible)
+        {
+            errorMsg = $"Cantidad supera el stock disponible ({libro.CantidadDisponible}).";
+            return;
+        }
+
+        if (TotalSeleccionado + cantidadSeleccionada > 3)
+        {
+            errorMsg = "No se pueden prestar más de 3 libros en total.";
+            return;
+        }
+
+        errorMsg = null;
+        prestamo.Detalles.Add(new PrestamoDetalle
+        {
+            LibroId = libro.Id,
+            Cantidad = cantidadSeleccionada
+        });
+    }
+
+    private void QuitarLibro(PrestamoDetalle detalle)
+    {
+        prestamo.Detalles.Remove(detalle);
+    }
+
+    private async Task GuardarAsync()
+    {
+        errorMsg = null;
+        successMsg = null;
+
+        if (prestamo.EstudianteId == 0)
+        {
+            errorMsg = "Debe seleccionar un estudiante.";
+            return;
+        }
+
+        if (prestamo.Detalles.Count == 0)
+        {
+            errorMsg = "Debe agregar al menos un libro.";
+            return;
+        }
+
+        if (TotalSeleccionado > 3)
+        {
+            errorMsg = "No se pueden prestar más de 3 libros en total.";
+            return;
+        }
+
+        prestamo.FechaSalida = DateTime.SpecifyKind(prestamo.FechaSalida, DateTimeKind.Utc);
+
+        if (!prestamo.EsInterno)
+        {
+            if (prestamo.FechaDevolucion.HasValue)
+            {
+                var f = prestamo.FechaDevolucion.Value;
+                prestamo.FechaDevolucion = (f == DateTime.MinValue)
+                    ? null
+                    : DateTime.SpecifyKind(f, DateTimeKind.Utc);
+            }
+            else
+            {
+                prestamo.FechaDevolucion = null;
+            }
+        }
+        else
+        {
+            prestamo.FechaDevolucion = null;
+        }
+
+        try
+        {
+            if (prestamo.Id == 0)
+                await PrestamosService.CrearAsync(prestamo);
+            else
+                await PrestamosService.ActualizarAsync(prestamo);
+
+            pendientes = await PrestamosService.ObtenerPendientesAsync();
+            successMsg = "Préstamo guardado correctamente.";
+            Limpiar();
+        }
+        catch (Exception ex)
+        {
+            errorMsg = $"No se pudo guardar el préstamo: {ex.Message}";
+        }
+    }
+
+	private void Limpiar()
+	{
+		prestamo = new Prestamo
+		{
+			FechaSalida = DateTime.UtcNow,
+			Detalles = new List<PrestamoDetalle>()
+		};
+		libroSeleccionadoId = 0;
+		cantidadSeleccionada = 1;
+		errorMsg = null;
+		successMsg = null;
+	}
+}

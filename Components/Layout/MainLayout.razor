@@ -1,0 +1,43 @@
+@inherits LayoutComponentBase
+@inject NavigationManager NavManager
+
+<div class="page">
+	<div class="sidebar bg-danger text-white">
+		<NavMenu />
+	</div>
+
+	<main class="@MainBackgroundClass">
+		<div class="content px-4 py-3">
+			@Body
+		</div>
+	</main>
+</div>
+
+@code {
+	private string MainBackgroundClass
+	  => string.IsNullOrEmpty(NavManager.ToBaseRelativePath(NavManager.Uri))
+		 ? "inicio-bg"
+		 : "modulo-bg";
+}
+
+<style>
+	.page {
+		display: flex;
+		min-height: 100vh;
+	}
+
+	.sidebar {
+		width: 220px;
+		padding: 1rem;
+	}
+
+	/* Fondo solo para módulos */
+	.modulo-bg {
+		background-color: #fff5f5;
+	}
+
+	/* Fondo transparente para la página de inicio */
+	.inicio-bg {
+		background-color: transparent;
+	}
+</style>
